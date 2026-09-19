@@ -1,9 +1,12 @@
 package inbound
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"strings"
+	"yellowsmtp/internal/mail"
+	"yellowsmtp/internal/outbound"
 
 	"github.com/emersion/go-smtp"
 )
@@ -11,6 +14,8 @@ import (
 type Session struct {
 	From string
 	To   []string
+
+	smtpAddr     string
 }
 
 func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
@@ -20,7 +25,7 @@ func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
 }
 
 func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
-	log.Println("Mail for: ", to)
+	log.Println("Mail to: ", to)
 	s.To = append(s.To, to)
 	return nil
 }
@@ -32,8 +37,14 @@ func (s *Session) Data(r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("[NEW EMAIL] From: %s | To: %v", s.From, s.To)
-	log.Println("Content:\n", buf.String())
+	log.Printf("[  NEW EMAIL  ] From: %s | To: %v", s.From, s.To)
+	msg := mail.Message{From: s.From, To: s.To, Body: buf.String()}
+	for _, rcpt := range s.To {
+		if err := outbound.Send(msg, rcpt); err != nil {
+			fmt.Printf("[  ERROR  ] Failed to send to %s: %v", rcpt, err)
+			continue
+		}
+	}
 	return nil
 }
 

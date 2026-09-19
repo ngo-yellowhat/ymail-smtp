@@ -17,7 +17,8 @@ var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "A brief description of your command",
 	Run: func(cmd *cobra.Command, args []string) {
-		be := &inbound.Backend{}
+		be := &inbound.Backend{
+		}
 		s := smtp.NewServer(be)
 
 		s.Addr = fmt.Sprintf(":%d", port)

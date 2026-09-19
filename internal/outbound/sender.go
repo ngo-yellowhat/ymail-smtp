@@ -2,74 +2,97 @@ package outbound
 
 import (
 	"crypto/tls"
+	"fmt"
 	"log"
 	"net"
 	"net/smtp"
+	"strings"
 	"time"
 
 	"yellowsmtp/internal/mail"
 )
 
-func Send() {
-	// flagPort := flag.Int("port", 587, "smtp port for send")
-	// flagMail := flag.String("from-mail", "", "email address from")
-
-	msg := mail.Message{
-		From: "amnes00a@gmail.com",
-		To:   []string{"amnes00a@gmail.com"}, Subject: "TEST",
-		Body: "DEMO DEMO DEMO",
-	}
-
-	conn, err := net.DialTimeout("tcp", "smtp.gmail.com:587", 10*time.Second)
+func Send(msg mail.Message, to string) error {
+	domain, err := GetDomain(to)
 	if err != nil {
-		log.Fatalf("[  ERROR  ] dial: %v", err)
+		return err
+	}
+	mailServerHost, err := LookupMailServer(domain)
+	if err != nil {
+		return err
+
+	}
+	smtpAddr := mailServerHost + ":25"
+	
+	conn, err := net.DialTimeout("tcp", smtpAddr, 10*time.Second)
+	if err != nil {
+		return fmt.Errorf("[  ERROR  ] dial: %v", err)
 	}
 	if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
 		conn.Close()
-		log.Fatalf("[  ERROR  ] set deadline: %v", err)
+		return fmt.Errorf("[  ERROR  ] set deadline: %v", err)
 	}
 
-	sc, err := smtp.NewClient(conn, "smtp.gmail.com")
+	sc, err := smtp.NewClient(conn, mailServerHost)
 	if err != nil {
 		sc.Close()
-		log.Fatalf("[  ERROR  ] stmp client: %v", err)
+		return fmt.Errorf("[  ERROR  ] SMTP client: %v", err)
 	}
 
 	if ok, _ := sc.Extension("STARTTLS"); ok {
 		config := &tls.Config{InsecureSkipVerify: true}
 		if err = sc.StartTLS(config); err != nil {
-			log.Fatalf("[  ERROR  ] StartTLS: %v", err)
+			return fmt.Errorf("[  ERROR  ] StartTLS: %v", err)
 		}
 	}
-
-	auth := smtp.PlainAuth("", "amnes00a@gmail.com", "qmmu ywji nnvz fbmy", "smtp.gmail.com")
-	if err := sc.Auth(auth); err != nil {
-		log.Fatalf("[  ERROR  ] Auth: %v", err)
-	}
+	
 	if err := sc.Mail(msg.From); err != nil {
-		log.Fatalf("[  ERROR  ] MAIL: %v", err)
+	   return fmt.Errorf("[  ERROR  ] MAIL: %v", err)
 	}
-
-	for _, addr := range msg.To {
-		if err := sc.Rcpt(addr); err != nil {
-			log.Fatalf("[  ERROR  ] RCPT: %v", err)
-		}
+	
+	if err := sc.Rcpt(to); err != nil {
+		return fmt.Errorf("[  ERROR  ] RCPT: %v", err)
 	}
 
 	w, err := sc.Data()
 	if err != nil {
-		log.Fatalf("[  ERROR  ] DATA: %v", err)
+		return fmt.Errorf("[  ERROR  ] DATA: %v", err)
 	}
 
 	_, err = w.Write(msg.Bytes())
 	if err != nil {
-		log.Fatalf("[  ERROR  ] Write: %v", err)
+		return fmt.Errorf("[  ERROR  ] Write: %v", err)
 	}
 
 	if err := w.Close(); err != nil {
-		log.Fatalf("[  ERROR  ] Close: %v", err)
+		return fmt.Errorf("[  ERROR  ] Close: %v", err)
 	}
 
 	sc.Quit()
 	log.Println("[  CLIENT  ] Email send successfully!")
+	
+	return nil
+}
+
+func GetDomain(mail string) (string, error) {
+	i := strings.LastIndex(mail, "@")
+	if i == -1 {
+		return "", fmt.Errorf("[  ERROR  ] Email is invalid")
+	}
+	return mail[i+1:], nil
+}
+
+func LookupMailServer(domain string) (string, error) {
+	mxRecords, err := net.LookupMX(domain)
+	if err != nil {
+		return "", fmt.Errorf(" [  ERROR  ] LookupMX: %v", err)
+	}
+	for _, mx := range mxRecords {
+		fmt.Println(mx.Host, mx.Pref)
+	}
+	if len(mxRecords) == 0 {
+		return "", fmt.Errorf("[  ERROR  ] Not found MX records for domain %s", domain)
+	}
+	best := mxRecords[0]
+	return strings.TrimSuffix(best.Host, "."), nil
 }

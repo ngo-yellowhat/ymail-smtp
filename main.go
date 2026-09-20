@@ -1,6 +1,6 @@
 package main
 
-import "yellowsmtp/cmd"
+import "ysmtp/cmd"
 
 func main() {
 	cmd.Execute()

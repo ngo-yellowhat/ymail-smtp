@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"yellowsmtp/internal/mail"
+	"ysmtp/internal/mail"
 )
 
 func Send(msg mail.Message, to string) error {

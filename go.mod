@@ -1,4 +1,4 @@
-module yellowsmtp
+module ysmtp
 
 go 1.26.7
 

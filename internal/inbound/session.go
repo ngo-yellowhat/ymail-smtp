@@ -5,8 +5,8 @@ import (
 	"io"
 	"log"
 	"strings"
-	"yellowsmtp/internal/mail"
-	"yellowsmtp/internal/outbound"
+	"ysmtp/internal/mail"
+	"ysmtp/internal/outbound"
 
 	"github.com/emersion/go-smtp"
 )
@@ -15,7 +15,7 @@ type Session struct {
 	From string
 	To   []string
 
-	smtpAddr     string
+	smtpAddr string
 }
 
 func (s *Session) Mail(from string, opts *smtp.MailOptions) error {

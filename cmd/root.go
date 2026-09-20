@@ -7,7 +7,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "yellowsmtp",
+	Use:   "ysmtp",
 	Short: "SMTP server for Ymail",
 }
 

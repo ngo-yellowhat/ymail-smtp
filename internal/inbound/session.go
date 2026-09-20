@@ -1,11 +1,14 @@
 package inbound
 
 import (
+	"crypto/rand"
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	netmail "net/mail"
 	"strings"
+	"time"
 	"ysmtp/internal/mail"
 	"ysmtp/internal/outbound"
 
@@ -36,10 +39,25 @@ func (s *Session) Data(r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	subject := parsedMsg.Header.Get("Subject")
+
+	// декодирование кириллицы
+	rawSubject := parsedMsg.Header.Get("Subject")
+	dec := new(mime.WordDecoder)
+	subject, err := dec.DecodeHeader(rawSubject)
+	if err != nil {
+		subject = rawSubject
+		// если это обычный текст
+	}
+
+	msgID := parsedMsg.Header.Get("Message-ID")
+	if msgID == "" {
+		msgID = generateMsgID("yellowhat.cz")
+	}
+
 	bodyBuf := new(strings.Builder)
 	io.Copy(bodyBuf, parsedMsg.Body)
-	msg := mail.Message{From: s.From, To: s.To, Subject: subject, Body: bodyBuf.String()}
+
+	msg := mail.Message{From: s.From, To: s.To, Subject: subject, Body: bodyBuf.String(), MessageID: msgID}
 	log.Printf("[  NEW EMAIL  ] From: %s | To: %v", s.From, s.To)
 	for _, rcpt := range s.To {
 		if err := outbound.Send(msg, rcpt); err != nil {
@@ -55,3 +73,9 @@ func (s *Session) Reset() {
 	s.To = nil
 }
 func (s *Session) Logout() error { return nil }
+
+func generateMsgID(domain string) string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("<%x-%d@%s>", b, time.Now().UnixNano(), domain)
+}

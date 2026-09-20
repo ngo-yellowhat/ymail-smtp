@@ -11,4 +11,5 @@ FROM alpine:latest
 WORKDIR /root/
 COPY --from=builder /app/ysmtp .
 EXPOSE 2525
-CMD ["./ysmtp"]
+ENTRYPOINT ["./ysmtp"]
+CMD ["start", "-d", "0.0.0.0", "-p", "2525"]

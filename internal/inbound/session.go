@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	netmail "net/mail"
 	"strings"
 	"ysmtp/internal/mail"
 	"ysmtp/internal/outbound"
@@ -31,14 +32,15 @@ func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
 }
 
 func (s *Session) Data(r io.Reader) error {
-	buf := new(strings.Builder)
-	n, err := io.Copy(buf, r)
-	log.Printf("[  DEBUG  ] Data: copy %d byte; err=%v", n, err)
+	parsedMsg, err := netmail.ReadMessage(r)
 	if err != nil {
 		return err
 	}
+	subject := parsedMsg.Header.Get("Subject")
+	bodyBuf := new(strings.Builder)
+	io.Copy(bodyBuf, parsedMsg.Body)
+	msg := mail.Message{From: s.From, To: s.To, Subject: subject, Body: bodyBuf.String()}
 	log.Printf("[  NEW EMAIL  ] From: %s | To: %v", s.From, s.To)
-	msg := mail.Message{From: s.From, To: s.To, Body: buf.String()}
 	for _, rcpt := range s.To {
 		if err := outbound.Send(msg, rcpt); err != nil {
 			fmt.Printf("[  ERROR  ] Failed to send to %s: %v", rcpt, err)

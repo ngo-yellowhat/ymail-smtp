@@ -13,9 +13,11 @@ import (
 
 var domain string
 var port int
+var writeTimeout time.Duration
+var readTimeout time.Duration
 var startCmd = &cobra.Command{
 	Use:   "start",
-	Short: "A brief description of your command",
+	Short: "Start SMTP server",
 	Run: func(cmd *cobra.Command, args []string) {
 		be := &inbound.Backend{
 		}
@@ -23,8 +25,8 @@ var startCmd = &cobra.Command{
 
 		s.Addr = fmt.Sprintf(":%d", port)
 		s.Domain = fmt.Sprintf("%s", domain)
-		s.WriteTimeout = 5 * time.Minute
-		s.ReadTimeout = 10 * time.Second
+		s.WriteTimeout = writeTimeout
+		s.ReadTimeout = readTimeout
 		s.AllowInsecureAuth = true
 
 		log.Printf("[  SERVER  ] SMTP start on %s%s", s.Domain, s.Addr)
@@ -38,4 +40,6 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 	startCmd.Flags().IntVarP(&port, "port", "p", 25, "Set port for SMTP server")
 	startCmd.Flags().StringVarP(&domain, "domain", "d", "localhost", "Set domain for SMTP server")
+	startCmd.Flags().DurationVar(&writeTimeout, "timeout-write", 30 * time.Second, "Set write timeout")
+	startCmd.Flags().DurationVar(&readTimeout, "timeout-read", 30 * time.Second, "Set read timeout")
 }

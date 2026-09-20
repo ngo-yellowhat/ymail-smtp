@@ -23,19 +23,18 @@ func Send(msg mail.Message, to string) error {
 
 	}
 	smtpAddr := mailServerHost + ":25"
-	
+
 	conn, err := net.DialTimeout("tcp", smtpAddr, 10*time.Second)
 	if err != nil {
 		return fmt.Errorf("[  ERROR  ] dial: %v", err)
 	}
+	defer conn.Close()
 	if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
-		conn.Close()
 		return fmt.Errorf("[  ERROR  ] set deadline: %v", err)
 	}
 
 	sc, err := smtp.NewClient(conn, mailServerHost)
 	if err != nil {
-		sc.Close()
 		return fmt.Errorf("[  ERROR  ] SMTP client: %v", err)
 	}
 
@@ -45,11 +44,11 @@ func Send(msg mail.Message, to string) error {
 			return fmt.Errorf("[  ERROR  ] StartTLS: %v", err)
 		}
 	}
-	
+
 	if err := sc.Mail(msg.From); err != nil {
-	   return fmt.Errorf("[  ERROR  ] MAIL: %v", err)
+		return fmt.Errorf("[  ERROR  ] MAIL: %v", err)
 	}
-	
+
 	if err := sc.Rcpt(to); err != nil {
 		return fmt.Errorf("[  ERROR  ] RCPT: %v", err)
 	}
@@ -70,7 +69,7 @@ func Send(msg mail.Message, to string) error {
 
 	sc.Quit()
 	log.Println("[  CLIENT  ] Email send successfully!")
-	
+
 	return nil
 }
 

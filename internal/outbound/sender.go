@@ -1,6 +1,7 @@
 package outbound
 
 import (
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -77,10 +78,20 @@ func Send(msg mail.Message, to string) error {
 		return fmt.Errorf("[  ERROR  ] failed to decode PEM block containing private key")
 	}
 
-	parsedKey, err := x509.ParsePKCS1PrivateKey(pemBlock.Bytes)
-	if err != nil {
-		return fmt.Errorf("[  ERROR  ] parse private key: %v", err)
-	}
+	var parsedKey crypto.Signer
+	var errKey error
+	rsaKey, errPKCS1 := x509.ParsePKCS1PrivateKey(pemBlock.Bytes)
+	if errPKCS1 == nil {
+		parsedKey = rsaKey
+	} else {
+		pkcs8, errPKCS8 := x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
+		if errPKCS8 != nil {
+			return fmt.Errorf("[  ERROR  ] parse private key: PKCS1 (%v) | PKCS8 (%v)", errPKCS1, errPKCS8)
+		}
+		signerKey, ok := pkcs8Key.(crypto.Signer)
+		if !ok {
+			return fmt.Errorf("[  ERROR  ] parsed PKCS8 does not implement crypto.Signer")
+		}
 
 	dkimOptions := &dkim.SignOptions{
 		Domain:   "yellowhat.cz",
@@ -105,12 +116,17 @@ func Send(msg mail.Message, to string) error {
 
 	dkimHeader := dkimSigner.Signature()
 
-	_, err = w.Write([]byte(dkimHeader + "\r\n")) // \r\n в конце, чтобы отделить DKIM заголовок от остальных данных
-	if err != nil {
-		return fmt.Errorf("[  ERROR  ] write DKIM header to SMTP: %v", err)
-	}
+	var fullMsg strings.Builder
+	fullMsg.WriteString(dkimHeader + "\r\n")
 
-	_, err = w.Write(msg.Bytes())
+	fullMsg.WriteString(fmt.Sprintf("From: %s\r\n", msg.From))
+	fullMsg.WriteString(fmt.Sprintf("To: %s\r\n", to))
+	fullMsg.WriteString(fmt.Sprintf("Subject: %s\r\n", msg.Subject))
+	fullMsg.WriteString(fmt.Sprintf("Message-ID: <%s>\r\n", msg.MessageID))
+	fullMsg.WriteString("\r\n")
+	fullMsg.WriteString(msg.Body)
+
+	_, err = w.Write([]byte(fullMsg.String()))
 	if err != nil {
 		return fmt.Errorf("[  ERROR  ] write mail bytes to SMTP: %v", err)
 	}

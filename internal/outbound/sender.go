@@ -38,7 +38,7 @@ func Send(msg mail.Message, to string) error {
 		return fmt.Errorf("[  ERROR  ] SMTP client: %v", err)
 	}
 
-	if err := sc.Hello("yellowhat.cz"); err != nil {
+	if err := sc.Hello("mail.yellowhat.cz"); err != nil {
 		return fmt.Errorf("[  ERROR  ] HELO/EHLO: %v", err)
 	}
 

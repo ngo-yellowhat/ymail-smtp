@@ -10,6 +10,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o ysmtp .
 FROM alpine:latest
 WORKDIR /root/
 COPY --from=builder /app/ysmtp .
-EXPOSE 2525
+EXPOSE 25
 ENTRYPOINT ["./ysmtp"]
-CMD ["start", "-d", "0.0.0.0", "-p", "2525"]
+CMD ["start", "-d", "0.0.0.0"]

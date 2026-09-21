@@ -10,10 +10,10 @@ build-docker:
 	docker build --network=host -t $(BIN_NAME) .
 
 run: build
-	./$(BIN_DIR)/$(BIN_NAME) start -p 2525
+	./$(BIN_DIR)/$(BIN_NAME) start
 
 run-docker:
-	docker run -p 2525:2525 $(BIN_NAME)
+	docker run -p 25:25 $(BIN_NAME)
 
 clean:
 	rm -rf $(BIN_DIR)

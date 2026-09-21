@@ -79,12 +79,11 @@ func Send(msg mail.Message, to string) error {
 	}
 
 	var parsedKey crypto.Signer
-	var errKey error
 	rsaKey, errPKCS1 := x509.ParsePKCS1PrivateKey(pemBlock.Bytes)
 	if errPKCS1 == nil {
 		parsedKey = rsaKey
 	} else {
-		pkcs8, errPKCS8 := x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
+		pkcs8Key, errPKCS8 := x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
 		if errPKCS8 != nil {
 			return fmt.Errorf("[  ERROR  ] parse private key: PKCS1 (%v) | PKCS8 (%v)", errPKCS1, errPKCS8)
 		}
@@ -92,6 +91,8 @@ func Send(msg mail.Message, to string) error {
 		if !ok {
 			return fmt.Errorf("[  ERROR  ] parsed PKCS8 does not implement crypto.Signer")
 		}
+		parsedKey = signerKey
+	}
 
 	dkimOptions := &dkim.SignOptions{
 		Domain:   "yellowhat.cz",

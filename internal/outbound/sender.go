@@ -100,12 +100,22 @@ func Send(msg mail.Message, to string) error {
 		Signer:   parsedKey,
 	}
 
+	var fullMsg strings.Builder
+	fullMsg.WriteString(fmt.Sprintf("From: %s\r\n", msg.From))
+	fullMsg.WriteString(fmt.Sprintf("To: %s\r\n", to))
+	fullMsg.WriteString(fmt.Sprintf("Subject: %s\r\n", msg.Subject))
+	fullMsg.WriteString(fmt.Sprintf("Message-ID: <%s>\r\n", msg.MessageID))
+	fullMsg.WriteString("MIME-Version: 1.0\r\n")
+	fullMsg.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
+	fullMsg.WriteString("\r\n")
+	fullMsg.WriteString(msg.Body)
+
 	dkimSigner, err := dkim.NewSigner(dkimOptions)
 	if err != nil {
 		return fmt.Errorf("[  ERROR  ] init dkim signer: %v", err)
 	}
 
-	_, err = dkimSigner.Write(msg.Bytes())
+	_, err = dkimSigner.Write([]byte(fullMsg.String()))
 	if err != nil {
 		dkimSigner.Close()
 		return fmt.Errorf("[  ERROR  ] write to DKIM: %v", err)
@@ -117,15 +127,10 @@ func Send(msg mail.Message, to string) error {
 
 	dkimHeader := dkimSigner.Signature()
 
-	var fullMsg strings.Builder
-	fullMsg.WriteString(dkimHeader + "\r\n")
-
-	fullMsg.WriteString(fmt.Sprintf("From: %s\r\n", msg.From))
-	fullMsg.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	fullMsg.WriteString(fmt.Sprintf("Subject: %s\r\n", msg.Subject))
-	fullMsg.WriteString(fmt.Sprintf("Message-ID: <%s>\r\n", msg.MessageID))
-	fullMsg.WriteString("\r\n")
-	fullMsg.WriteString(msg.Body)
+	_, err = w.Write([]byte(dkimHeader + "\r\n"))
+	if err != nil {
+		return fmt.Errorf("[  ERROR  ] write DKIM header to SMTP: %v", err)
+	}
 
 	_, err = w.Write([]byte(fullMsg.String()))
 	if err != nil {

@@ -127,7 +127,7 @@ func Send(msg mail.Message, to string) error {
 
 	dkimHeader := dkimSigner.Signature()
 
-	_, err = w.Write([]byte(dkimHeader + "\r\n"))
+	_, err = w.Write([]byte(dkimHeader))
 	if err != nil {
 		return fmt.Errorf("[  ERROR  ] write DKIM header to SMTP: %v", err)
 	}

@@ -104,6 +104,7 @@ func Send(msg mail.Message, to string) error {
 	fullMsg.WriteString(fmt.Sprintf("From: %s\r\n", msg.From))
 	fullMsg.WriteString(fmt.Sprintf("To: %s\r\n", to))
 	fullMsg.WriteString(fmt.Sprintf("Subject: %s\r\n", msg.Subject))
+	fullMsg.WriteString(fmt.Sprintf("Date: %s\r\n", time.Now().Format(time.RFC1123Z)))
 	fullMsg.WriteString(fmt.Sprintf("Message-ID: <%s>\r\n", msg.MessageID))
 	fullMsg.WriteString("MIME-Version: 1.0\r\n")
 	fullMsg.WriteString("Content-Type: text/plain; charset=utf-8\r\n")

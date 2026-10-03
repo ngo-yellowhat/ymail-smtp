@@ -1,0 +1,6 @@
+*.md
+*.pem
+*.nix
+*.lock
+.git
+bin/

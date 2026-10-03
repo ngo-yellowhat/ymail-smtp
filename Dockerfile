@@ -12,4 +12,4 @@ WORKDIR /root/
 COPY --from=builder /app/ysmtp .
 EXPOSE 25
 ENTRYPOINT ["./ysmtp"]
-CMD ["start", "-d", "0.0.0.0"]
+CMD ["start", "--helo-domain", "0.0.0.0"]

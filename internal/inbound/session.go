@@ -1,14 +1,11 @@
 package inbound
 
 import (
-	"crypto/rand"
-	"fmt"
 	"io"
 	"log"
 	"mime"
 	netmail "net/mail"
 	"strings"
-	"time"
 	"ysmtp/internal/mail"
 	"ysmtp/internal/outbound"
 
@@ -20,6 +17,7 @@ type Session struct {
 	To   []string
 
 	smtpAddr string
+	sender   *outbound.Sender
 }
 
 func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
@@ -51,7 +49,7 @@ func (s *Session) Data(r io.Reader) error {
 
 	msgID := parsedMsg.Header.Get("Message-ID")
 	if msgID == "" {
-		msgID = generateMsgID("yellowhat.cz")
+		msgID = mail.GenerateMsgID("yellowhat.cz")
 	}
 
 	bodyBuf := new(strings.Builder)
@@ -60,8 +58,8 @@ func (s *Session) Data(r io.Reader) error {
 	msg := mail.Message{From: s.From, To: s.To, Subject: subject, Body: bodyBuf.String(), MessageID: msgID}
 	log.Printf("[  NEW EMAIL  ] From: %s | To: %v", s.From, s.To)
 	for _, rcpt := range s.To {
-		if err := outbound.Send(msg, rcpt); err != nil {
-			fmt.Printf("[  ERROR  ] Failed to send to %s: %v", rcpt, err)
+		if err := s.sender.Send(msg, rcpt); err != nil {
+			log.Printf("[  ERROR  ] Failed to send to %s: %v\n", rcpt, err)
 			continue
 		}
 	}
@@ -73,9 +71,3 @@ func (s *Session) Reset() {
 	s.To = nil
 }
 func (s *Session) Logout() error { return nil }
-
-func generateMsgID(domain string) string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return fmt.Sprintf("<%x-%d@%s>", b, time.Now().UnixNano(), domain)
-}

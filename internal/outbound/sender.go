@@ -1,15 +1,17 @@
 package outbound
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/smtp"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -18,137 +20,123 @@ import (
 	"github.com/emersion/go-msgauth/dkim"
 )
 
-func Send(msg mail.Message, to string) error {
-	domain, err := GetDomain(to)
-	if err != nil {
-		return err
-	}
-	mailServerHost, err := LookupMailServer(domain)
-	if err != nil {
-		return err
-	}
-	smtpAddr := mailServerHost + ":25"
+type Sender struct {
+	HeloDomain   string
+	DKIMdomain   string
+	DKIMselector string
+	DKIMkey      string
+}
 
-	conn, err := net.DialTimeout("tcp", smtpAddr, 10*time.Second)
+func (s *Sender) Send(msg mail.Message, to string) error {
+	raw := msg.Bytes()
+	reader := bytes.NewReader(raw)
+	signer, err := loadPrivateKey(s.DKIMkey)
 	if err != nil {
-		return fmt.Errorf("[  ERROR  ] dial: %v", err)
+		return fmt.Errorf("[  ERROR  ] load private key: %v", err)
+	}
+	opts := &dkim.SignOptions{
+		Domain:   s.DKIMdomain,
+		Selector: s.DKIMselector,
+		Signer:   signer,
+		Hash:     crypto.SHA256,
+	}
+	var signed bytes.Buffer
+	if err := dkim.Sign(&signed, reader, opts); err != nil {
+		return fmt.Errorf("[  ERROR  ] DKIM sign: %v", err)
+	}
+
+	domain, err := getDomain(to)
+	if err != nil {
+		return err
+	}
+
+	mxRecords, err := lookupMailServer(domain)
+	if err != nil {
+		return fmt.Errorf("[  ERROR  ] MX lookup: %v", err)
+	}
+	mxHost := mxRecords[0].Host
+
+	connTimeout := net.Dialer{
+		Timeout: 5 * time.Second,
+	}
+	conn, err := connTimeout.Dial("tcp", mxHost+":25")
+	if err != nil {
+		return fmt.Errorf("[  ERROR  ] Dial host: %v", err)
 	}
 	defer conn.Close()
-	if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
-		return fmt.Errorf("[  ERROR  ] set deadline: %v", err)
-	}
 
-	sc, err := smtp.NewClient(conn, mailServerHost)
+	sc, err := smtp.NewClient(conn, mxHost)
 	if err != nil {
-		return fmt.Errorf("[  ERROR  ] SMTP client: %v", err)
+		return fmt.Errorf("[  ERROR  ] failed SMTP: %v", err)
 	}
 
-	if err := sc.Hello("mail.yellowhat.cz"); err != nil {
-		return fmt.Errorf("[  ERROR  ] HELO/EHLO: %v", err)
+	if err := sc.Hello(s.HeloDomain); err != nil {
+		return fmt.Errorf("[  ERROR  ] HELO: %v", err)
 	}
 
-	if ok, _ := sc.Extension("STARTTLS"); ok {
-		config := &tls.Config{InsecureSkipVerify: true}
-		if err = sc.StartTLS(config); err != nil {
-			return fmt.Errorf("[  ERROR  ] StartTLS: %v", err)
+	tlsConfig := &tls.Config{
+		ServerName: mxHost,
+		MinVersion: tls.VersionTLS12,
+	}
+	starttls, _ := sc.Extension("STARTTLS")
+	if starttls {
+		if err := sc.StartTLS(tlsConfig); err != nil {
+			return fmt.Errorf("[  ERROR  ] STARTTLS: %v", err)
 		}
 	}
 
 	if err := sc.Mail(msg.From); err != nil {
-		return fmt.Errorf("[  ERROR  ] MAIL: %v", err)
+		return fmt.Errorf("[  ERROR  ] mail from: %v", err)
 	}
-
 	if err := sc.Rcpt(to); err != nil {
-		return fmt.Errorf("[  ERROR  ] RCPT: %v", err)
+		return fmt.Errorf("[  ERROR  ] mail to: %v", err)
 	}
 
 	w, err := sc.Data()
 	if err != nil {
-		return fmt.Errorf("[  ERROR  ] DATA: %v", err)
+		return fmt.Errorf("[  ERROR  ] data: %v", err)
 	}
-	defer w.Close()
 
-	keyBytes, err := os.ReadFile("dkim_private.pem")
+	if _, err := w.Write(signed.Bytes()); err != nil {
+		return fmt.Errorf("[  ERROR  ] write data: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("[  ERROR  ] close data: %v", err)
+	}
+
+	return sc.Quit()
+}
+
+func loadPrivateKey(path string) (crypto.Signer, error) {
+	keyBytes, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("[  ERROR  ] read dkim private key: %v", err)
+		return nil, err
 	}
 
 	pemBlock, _ := pem.Decode(keyBytes)
 	if pemBlock == nil {
-		return fmt.Errorf("[  ERROR  ] failed to decode PEM block containing private key")
+		return nil, errors.New("[  ERROR  ] failed to decode PEM block")
 	}
 
-	var parsedKey crypto.Signer
-	rsaKey, errPKCS1 := x509.ParsePKCS1PrivateKey(pemBlock.Bytes)
-	if errPKCS1 == nil {
-		parsedKey = rsaKey
-	} else {
-		pkcs8Key, errPKCS8 := x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
-		if errPKCS8 != nil {
-			return fmt.Errorf("[  ERROR  ] parse private key: PKCS1 (%v) | PKCS8 (%v)", errPKCS1, errPKCS8)
-		}
-		signerKey, ok := pkcs8Key.(crypto.Signer)
-		if !ok {
-			return fmt.Errorf("[  ERROR  ] parsed PKCS8 does not implement crypto.Signer")
-		}
-		parsedKey = signerKey
+	if rsaKey, err := x509.ParsePKCS1PrivateKey(pemBlock.Bytes); err == nil {
+		return rsaKey, nil
 	}
 
-	dkimOptions := &dkim.SignOptions{
-		Domain:   "yellowhat.cz",
-		Selector: "default",
-		Signer:   parsedKey,
-	}
-
-	var fullMsg strings.Builder
-	fullMsg.WriteString(fmt.Sprintf("From: %s\r\n", msg.From))
-	fullMsg.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	fullMsg.WriteString(fmt.Sprintf("Subject: %s\r\n", msg.Subject))
-	fullMsg.WriteString(fmt.Sprintf("Date: %s\r\n", time.Now().Format(time.RFC1123Z)))
-	fullMsg.WriteString(fmt.Sprintf("Message-ID: <%s>\r\n", msg.MessageID))
-	fullMsg.WriteString("MIME-Version: 1.0\r\n")
-	fullMsg.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
-	fullMsg.WriteString("\r\n")
-	fullMsg.WriteString(msg.Body)
-
-	dkimSigner, err := dkim.NewSigner(dkimOptions)
+	pkcs8Key, err := x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
 	if err != nil {
-		return fmt.Errorf("[  ERROR  ] init dkim signer: %v", err)
+		return nil, fmt.Errorf("[  ERROR  ] parse key failed: %v", err)
 	}
 
-	_, err = dkimSigner.Write([]byte(fullMsg.String()))
-	if err != nil {
-		dkimSigner.Close()
-		return fmt.Errorf("[  ERROR  ] write to DKIM: %v", err)
+	signerKey, ok := pkcs8Key.(crypto.Signer)
+	if !ok {
+		return nil, errors.New("[  ERROR  ] key does not impelement crypto.Signer")
 	}
 
-	if err := dkimSigner.Close(); err != nil {
-		return fmt.Errorf("[  ERROR  ] DKIM close: %v", err)
-	}
-
-	dkimHeader := dkimSigner.Signature()
-
-	_, err = w.Write([]byte(dkimHeader))
-	if err != nil {
-		return fmt.Errorf("[  ERROR  ] write DKIM header to SMTP: %v", err)
-	}
-
-	_, err = w.Write([]byte(fullMsg.String()))
-	if err != nil {
-		return fmt.Errorf("[  ERROR  ] write mail bytes to SMTP: %v", err)
-	}
-
-	if err := w.Close(); err != nil {
-		return fmt.Errorf("[  ERROR  ] SMTP close: %v", err)
-	}
-
-	sc.Quit()
-	log.Println("[  CLIENT  ] Email sent successfully with DKIM!")
-
-	return nil
+	return signerKey, nil
 }
 
-func GetDomain(mail string) (string, error) {
+func getDomain(mail string) (string, error) {
 	i := strings.LastIndex(mail, "@")
 	if i == -1 {
 		return "", fmt.Errorf("[  ERROR  ] Email is invalid")
@@ -156,17 +144,13 @@ func GetDomain(mail string) (string, error) {
 	return mail[i+1:], nil
 }
 
-func LookupMailServer(domain string) (string, error) {
+func lookupMailServer(domain string) ([]*net.MX, error) {
 	mxRecords, err := net.LookupMX(domain)
-	if err != nil {
-		return "", fmt.Errorf(" [  ERROR  ] LookupMX: %v", err)
+	if err != nil || len(mxRecords) == 0 {
+		return nil, fmt.Errorf(" [  ERROR  ] LookupMX: %v", err)
 	}
-	for _, mx := range mxRecords {
-		fmt.Println(mx.Host, mx.Pref)
-	}
-	if len(mxRecords) == 0 {
-		return "", fmt.Errorf("[  ERROR  ] Not found MX records for domain %s", domain)
-	}
-	best := mxRecords[0]
-	return strings.TrimSuffix(best.Host, "."), nil
+	sort.Slice(mxRecords, func(i, j int) bool {
+		return mxRecords[i].Pref < mxRecords[j].Pref
+	})
+	return mxRecords, nil
 }

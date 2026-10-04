@@ -20,7 +20,7 @@ git clone https://github.com/ngo-yellowhat/ymail-smtp
 cd ymail-smtp
 make build run
 ```
-запустит smtp-сервер на localhost:2525
+запустит smtp-сервер на localhost:25
 см. [Makefile](Makefile)
 
 ### Docker
@@ -35,7 +35,7 @@ make build-docker run-docker
 
 ## Тестирование
 ```shell
-telnet localhost 2525
+telnet localhost 25
 ```
 Или другой порт, который вы указали
 При тестировании через `netcat` (nc) возможны проблемы: `nc` по умолчанию использует '\n' вместо требуемого протоколом '\r\n', из-за чего завершающая точка DATA может не распознаваться сервером. Рекомендуется `telnet` или реальный SMTP-клиент (например, Python с smtplib) для надёжного теста

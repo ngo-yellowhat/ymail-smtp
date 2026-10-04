@@ -12,7 +12,6 @@ import (
 	"net/smtp"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"ysmtp/internal/mail"
@@ -45,7 +44,7 @@ func (s *Sender) Send(msg mail.Message, to string) error {
 		return fmt.Errorf("[  ERROR  ] DKIM sign: %v", err)
 	}
 
-	domain, err := getDomain(to)
+	domain, err := mail.GetDomain(to)
 	if err != nil {
 		return err
 	}
@@ -134,14 +133,6 @@ func loadPrivateKey(path string) (crypto.Signer, error) {
 	}
 
 	return signerKey, nil
-}
-
-func getDomain(mail string) (string, error) {
-	i := strings.LastIndex(mail, "@")
-	if i == -1 {
-		return "", fmt.Errorf("[  ERROR  ] Email is invalid")
-	}
-	return mail[i+1:], nil
 }
 
 func lookupMailServer(domain string) ([]*net.MX, error) {

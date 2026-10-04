@@ -7,17 +7,20 @@ import (
 )
 
 type Backend struct {
-	sender *outbound.Sender
+	sender      *outbound.Sender
+	localDomain string
 }
 
-func NewBackend(sender *outbound.Sender) *Backend {
+func NewBackend(sender *outbound.Sender, localDomain string) *Backend {
 	return &Backend{
-		sender: sender,
+		sender:      sender,
+		localDomain: localDomain,
 	}
 }
 
 func (bkd *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 	return &Session{
-		sender: bkd.sender,
+		sender:      bkd.sender,
+		localDomain: bkd.localDomain,
 	}, nil
 }

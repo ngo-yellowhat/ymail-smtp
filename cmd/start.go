@@ -30,7 +30,7 @@ var (
 				DKIMselector: dkimSelector,
 				DKIMkey:      dkimKeyPath,
 			}
-			be := inbound.NewBackend(sender)
+			be := inbound.NewBackend(sender, dkimDomain)
 			s := smtp.NewServer(be)
 
 			s.Addr = fmt.Sprintf(":%d", port)
@@ -51,8 +51,8 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 	startCmd.Flags().IntVarP(&port, "port", "p", 25, "Set port for SMTP server")
 	startCmd.Flags().StringVar(&heloDomain, "helo-domain", "mail.yellowhat.cz", "Set helo-domain for SMTP server")
-	startCmd.Flags().StringVar(&dkimDomain, "dkim-domain", "", "Set DKIM domain")
-	startCmd.Flags().StringVar(&dkimKeyPath, "dkim-key", "", "Set path to DKIM key")
+	startCmd.Flags().StringVar(&dkimDomain, "dkim-domain", "yellowhat.cz", "Set DKIM domain")
+	startCmd.Flags().StringVar(&dkimKeyPath, "dkim-key", ".", "Set path to DKIM key")
 	startCmd.Flags().StringVar(&dkimSelector, "dkim-selector", "", "Set DKIM selector")
 	startCmd.Flags().DurationVar(&writeTimeout, "timeout-write", 30*time.Second, "Set write timeout")
 	startCmd.Flags().DurationVar(&readTimeout, "timeout-read", 30*time.Second, "Set read timeout")

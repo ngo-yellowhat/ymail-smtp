@@ -71,3 +71,14 @@ func (s *Session) Reset() {
 	s.To = nil
 }
 func (s *Session) Logout() error { return nil }
+
+func decodeBody(encoding string, r io.Reader) io.Reader {
+	switch strings.ToLower(strings.TrimSpace(encoding)) {
+	case "base64":
+		return base64.NewDecoder(base64.StdEncoding, r)
+	case "quoted-printable":
+		return quotedprintable.NewReader(r)
+	default:
+		return r
+	}
+}

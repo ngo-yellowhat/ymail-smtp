@@ -42,7 +42,7 @@ func GenerateMsgID(domain string) string {
 
 func GetDomain(mail string) (string, error) {
 	i := strings.LastIndex(mail, "@")
-	if i == -1 {
+	if i == -1 || i == 0 || i == len(mail)-1 {
 		return "", fmt.Errorf("[  ERROR  ] Email is invalid")
 	}
 	return mail[i+1:], nil

@@ -1,4 +1,4 @@
-name: Go
+name: Go CI
 
 on:
   push:
@@ -6,40 +6,60 @@ on:
   pull_request:
     branches: [ "main", "dev" ]
 
+env:
+  GOLANGCI-LINT_VERSION: v2.13
+  
+permissions:
+  contents: read
+
 jobs:
-  test:
+  lint:
+    name: Golangci-lint
     runs-on: ubuntu-latest
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.26'
-        cache: true
-
-    - name: Install dependencies
-      run: go mod download
+      - name: Checkout
+        uses: actions/checkout@v7
         
-    - name: Run unit tests
-      run: go test -v -race ./...
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          
+      - name: Linter
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ env.GOLANGCI-LINT_VERSION }}
+  
+  test:
+    name: Run unit tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+        
+      - name: Tests
+        run: |
+          go vet -v ./...
+          go test -v -race ./...      
         
   build:
     name: Build SMTP
     runs-on: ubuntu-latest
-    needs: test
+    needs: [ "lint", "test" ]
+    
     steps:
-    - uses: actions/checkout@v5
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.26'
-        cache: true
-
-    - name: Install dependencies
-      run: go mod download
+      - name: Checkout
+        uses: actions/checkout@v7
         
-    - name: Build
-      run: go build -v ./...
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        
+      - name: Build
+        run: go build -v ./...

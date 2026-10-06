@@ -20,7 +20,6 @@ type Session struct {
 	From string
 	To   []string
 
-	smtpAddr    string
 	sender      *outbound.Sender
 	localDomain string
 }

@@ -34,7 +34,7 @@ var (
 			s := smtp.NewServer(be)
 
 			s.Addr = fmt.Sprintf(":%d", port)
-			s.Domain = fmt.Sprintf("%s", heloDomain)
+			s.Domain = heloDomain
 			s.WriteTimeout = writeTimeout
 			s.ReadTimeout = readTimeout
 			s.AllowInsecureAuth = true

@@ -62,7 +62,7 @@ func (s *Sender) Send(msg mail.Message, to string) error {
 	if err != nil {
 		return fmt.Errorf("[  ERROR  ] Dial host: %v", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }() // ignore error
 
 	sc, err := smtp.NewClient(conn, mxHost)
 	if err != nil {

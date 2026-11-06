@@ -37,7 +37,7 @@ var (
 			s.Domain = heloDomain
 			s.WriteTimeout = writeTimeout
 			s.ReadTimeout = readTimeout
-			s.AllowInsecureAuth = true
+			s.AllowInsecureAuth = false
 
 			log.Printf("[  SERVER  ] SMTP start on %s%s", s.Domain, s.Addr)
 			if err := s.ListenAndServe(); err != nil {

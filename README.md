@@ -9,8 +9,7 @@ Built using the following libraries:
 
 ## Features
 - Email reception
-- Direct delivery to the recipient
-- STARTTLS during delivery, if supported by the recipient
+- Direct delivery to the recipient STARTTLS during delivery, if supported by the recipient
 - Does not store emails—transit forwarding only
 
 ## Running
@@ -18,9 +17,9 @@ Built using the following libraries:
 ```shell
 git clone https://github.com/ngo-yellowhat/ymail-smtp
 cd ymail-smtp
-make build run
+make build
+./bin/ysmtp
 ```
-This starts the SMTP server on `localhost:25`.
 See [Makefile](Makefile).
 
 ### Docker

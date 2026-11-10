@@ -18,9 +18,9 @@ SMTP сервер прямой доставки писем - принимает 
 ```shell
 git clone https://github.com/ngo-yellowhat/ymail-smtp
 cd ymail-smtp
-make build run
+make build
+./bin/ysmtp
 ```
-запустит smtp-сервер на localhost:25
 см. [Makefile](Makefile)
 
 ### Docker

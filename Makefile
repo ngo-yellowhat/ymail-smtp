@@ -4,13 +4,10 @@ BIN_DIR=bin
 .PHONY: build build-docker run run-docker clean test
 
 build:
-	go build -o $(BIN_DIR)/$(BIN_NAME) .
+	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o $(BIN_DIR)/$(BIN_NAME) .
 
 build-docker:
 	docker build --network=host -t $(BIN_NAME) .
-
-run: build
-	./$(BIN_DIR)/$(BIN_NAME) start
 
 run-docker:
 	docker run -p 25:25 $(BIN_NAME)

@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"ysmtp/internal/mail"
-	"ysmtp/internal/outbound"
 
 	"github.com/emersion/go-smtp"
 )
@@ -27,7 +26,7 @@ const (
 type Session struct {
 	From        string
 	To          []string
-	sender      *outbound.Sender
+	sender      Sender
 	localDomain string
 }
 type Body struct {
@@ -83,7 +82,7 @@ func (s *Session) Data(r io.Reader) error {
 
 	msgID := parsedMsg.Header.Get("Message-ID")
 	if msgID == "" {
-		msgID = mail.GenerateMsgID(s.sender.DKIMdomain)
+		msgID = mail.GenerateMsgID(s.localDomain)
 	}
 
 	safeMsgID := strings.NewReplacer("<", "", ">", "", "/", "_", "@", "_").Replace(msgID)

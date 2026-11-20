@@ -24,11 +24,9 @@ var (
 		Use:   "start",
 		Short: "Start SMTP server",
 		Run: func(cmd *cobra.Command, args []string) {
-			sender := &outbound.Sender{
-				HeloDomain:   heloDomain,
-				DKIMdomain:   dkimDomain,
-				DKIMselector: dkimSelector,
-				DKIMkey:      dkimKeyPath,
+			sender, err := outbound.NewSender(heloDomain, dkimDomain, dkimSelector, dkimKeyPath)
+			if err != nil {
+				log.Fatalf("[  ERROR  ] create sender: %v", err)
 			}
 			be := inbound.NewBackend(sender, dkimDomain)
 			s := smtp.NewServer(be)

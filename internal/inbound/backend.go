@@ -1,17 +1,21 @@
 package inbound
 
 import (
-	"ysmtp/internal/outbound"
+	"ysmtp/internal/mail"
 
 	"github.com/emersion/go-smtp"
 )
 
+type Sender interface {
+	Send(msg mail.Message, to string) error
+}
+
 type Backend struct {
-	sender      *outbound.Sender
+	sender      Sender
 	localDomain string
 }
 
-func NewBackend(sender *outbound.Sender, localDomain string) *Backend {
+func NewBackend(sender Sender, localDomain string) *Backend {
 	return &Backend{
 		sender:      sender,
 		localDomain: localDomain,

@@ -29,7 +29,7 @@ var (
 			if err != nil {
 				log.Fatalf("[  ERROR  ] create sender: %v", err)
 			}
-			be := inbound.NewBackend(sender, dkimDomain)
+			be := inbound.NewBackend(sender, dkimDomain, saveDir)
 			s := smtp.NewServer(be)
 
 			s.Addr = fmt.Sprintf(":%d", port)

@@ -11,6 +11,7 @@ import (
 	"mime/quotedprintable"
 	netmail "net/mail"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"ysmtp/internal/mail"
@@ -28,6 +29,7 @@ type Session struct {
 	To          []string
 	sender      Sender
 	localDomain string
+	saveDir     string
 }
 type Body struct {
 	Text string // text/plain
@@ -86,12 +88,17 @@ func (s *Session) Data(r io.Reader) error {
 	}
 
 	safeMsgID := strings.NewReplacer("<", "", ">", "", "/", "_", "@", "_").Replace(msgID)
-	_ = os.Mkdir("./stored_emails", 0o755)
-	fileName := fmt.Sprintf("./stored_emails/%s.eml", safeMsgID)
-	if err := os.WriteFile(fileName, rawEmailData, 0o600); err != nil {
-		log.Printf("[  ERROR  ] failed to save .eml file: %v\n", err)
-	} else {
-		log.Printf("[  SESSION  ] raw email saved to %s\n", fileName)
+	if s.saveDir != "" {
+		if err := os.MkdirAll(s.saveDir, 0o755); err != nil {
+			log.Printf("[  SESSION  ] create save dir: %v", err)
+		} else {
+			fileName := filepath.Join(s.saveDir, safeMsgID+".eml")
+			if err := os.WriteFile(fileName, rawEmailData, 0o600); err != nil {
+				log.Printf("[  ERROR  ] failed to save .eml file: %v\n", err)
+			} else {
+				log.Printf("[  SESSION  ] raw email saved to %s\n", fileName)
+			}
+		}
 	}
 
 	body, err := extractBody(

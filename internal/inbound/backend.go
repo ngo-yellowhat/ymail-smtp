@@ -13,6 +13,7 @@ type Sender interface {
 type Backend struct {
 	sender      Sender
 	localDomain string
+	saveDir     string
 }
 
 func NewBackend(sender Sender, localDomain string) *Backend {

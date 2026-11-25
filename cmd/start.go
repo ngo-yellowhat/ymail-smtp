@@ -20,6 +20,7 @@ var (
 	dkimDomain   string
 	dkimSelector string
 	dkimKeyPath  string
+	saveDir      string
 	startCmd     = &cobra.Command{
 		Use:   "start",
 		Short: "Start SMTP server",
@@ -53,6 +54,7 @@ func init() {
 	startCmd.Flags().StringVar(&dkimDomain, "dkim-domain", "yellowhat.cz", "Set DKIM domain")
 	startCmd.Flags().StringVar(&dkimKeyPath, "dkim-key", ".", "Set path to DKIM key")
 	startCmd.Flags().StringVar(&dkimSelector, "dkim-selector", "", "Set DKIM selector")
+	startCmd.Flags().StringVar(&saveDir, "save-dir", "", "Save raw emails to dir (disabled if empty)")
 	startCmd.Flags().DurationVar(&writeTimeout, "timeout-write", 30*time.Second, "Set write timeout")
 	startCmd.Flags().DurationVar(&readTimeout, "timeout-read", 30*time.Second, "Set read timeout")
 }

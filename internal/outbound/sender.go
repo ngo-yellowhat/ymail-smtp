@@ -8,8 +8,10 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/smtp"
+	"net/textproto"
 	"os"
 	"sort"
 	"time"
@@ -80,23 +82,43 @@ func (s *Sender) Send(msg mail.Message, to string) error {
 	if err != nil {
 		return fmt.Errorf("[  ERROR  ] MX lookup: %v", err)
 	}
-	mxHost := mxRecords[0].Host
 
+	var lastErr error
+	for _, mx := range mxRecords {
+		log.Printf("[  MX  ] trying %s (pref %d)", mx.Host, mx.Pref)
+
+		err := s.deliver(mx.Host, msg.From, to, payload)
+		if err == nil {
+			return nil
+		}
+
+		var protoErr *textproto.Error
+		if errors.As(err, &protoErr) && protoErr.Code >= 500 {
+			return fmt.Errorf("[  ERROR  ] permanent error from %s (code %d): %w", mx.Host, protoErr.Code, err)
+		}
+
+		log.Printf("[  MX  ] %s failed: %v, trying next", mx.Host, err)
+		lastErr = err
+	}
+	return fmt.Errorf("[  ERROR  ] all %d MX hosts failed: %w", len(mxRecords), lastErr)
+}
+
+func (s *Sender) deliver(mxHost, from, to string, payload []byte) error {
 	connTimeout := net.Dialer{
 		Timeout: 5 * time.Second,
 	}
 	conn, err := connTimeout.Dial("tcp", mxHost+":25")
 	if err != nil {
-		return fmt.Errorf("[  ERROR  ] dial host: %v", err)
+		return fmt.Errorf("[  ERROR  ] dial host: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
 
 	sc, err := smtp.NewClient(conn, mxHost)
 	if err != nil {
-		return fmt.Errorf("[  ERROR  ] failed SMTP: %v", err)
+		return fmt.Errorf("[  ERROR  ] failed SMTP: %w", err)
 	}
 	if err := sc.Hello(s.heloDomain); err != nil {
-		return fmt.Errorf("[  ERROR  ] HELO: %v", err)
+		return fmt.Errorf("[  ERROR  ] HELO: %w", err)
 	}
 
 	tlsConfig := tls.Config{
@@ -105,26 +127,26 @@ func (s *Sender) Send(msg mail.Message, to string) error {
 	}
 	if starttls, _ := sc.Extension("STARTTLS"); starttls {
 		if err := sc.StartTLS(&tlsConfig); err != nil {
-			return fmt.Errorf("[  ERROR  ] STARTTLS: %v", err)
+			return fmt.Errorf("[  ERROR  ] STARTTLS: %w", err)
 		}
 	}
 
-	if err := sc.Mail(msg.From); err != nil {
-		return fmt.Errorf("[  ERROR  ] mail from: %v", err)
+	if err := sc.Mail(from); err != nil {
+		return fmt.Errorf("[  ERROR  ] mail from: %w", err)
 	}
 	if err := sc.Rcpt(to); err != nil {
-		return fmt.Errorf("[ ERROR  ] mail to: %v", err)
+		return fmt.Errorf("[  ERROR  ] mail to: %w", err)
 	}
 
 	w, err := sc.Data()
 	if err != nil {
-		return fmt.Errorf("[  ERROR  ] data :%v", err)
+		return fmt.Errorf("[  ERROR  ] data :%w", err)
 	}
 	if _, err := w.Write(payload); err != nil {
-		return fmt.Errorf("[  ERROR  ] write data: %v", err)
+		return fmt.Errorf("[  ERROR  ] write data: %w", err)
 	}
 	if err := w.Close(); err != nil {
-		return fmt.Errorf("[  ERROR  ] close data: %v", err)
+		return fmt.Errorf("[  ERROR  ] close data: %w", err)
 	}
 
 	return sc.Quit()
